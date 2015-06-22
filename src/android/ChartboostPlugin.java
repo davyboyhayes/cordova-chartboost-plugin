@@ -59,6 +59,8 @@ public class ChartboostPlugin extends CordovaPlugin{
 					Chartboost.showInterstitial(location);
 				}
 			});
+            
+            return true;
 		}
 		
 		return false;
