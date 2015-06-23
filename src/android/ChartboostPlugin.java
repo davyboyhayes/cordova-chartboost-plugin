@@ -6,7 +6,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 
 import com.chartboost.sdk.Chartboost;
-
+import com.chartboost.sdk.ChartboostDelegate;
+import com.chartboost.sdk.CBLocation;
+import com.chartboost.sdk.Model.CBError.CBImpressionError;
 
 public class ChartboostPlugin extends CordovaPlugin{
 	
@@ -32,6 +34,7 @@ public class ChartboostPlugin extends CordovaPlugin{
 		super.onPause(multitasking);
 	}
 	
+    private CallbackContext callbackContext = null;
 	
 	@Override
 	public boolean execute(String action, JSONArray args, CallbackContext callback) throws JSONException{
@@ -44,6 +47,7 @@ public class ChartboostPlugin extends CordovaPlugin{
 				@Override
 				public void run() {
 					Chartboost.startWithAppId(cordova.getActivity(), appId , appSignature);
+					Chartboost.setDelegate(delegate);
 					Chartboost.onCreate(cordova.getActivity());
 					Chartboost.onStart(cordova.getActivity());
 				}
@@ -52,7 +56,7 @@ public class ChartboostPlugin extends CordovaPlugin{
 			return true;
 		}else if(action.equals(ACTION_SHOW_INTERSTITIAL)){
 			final String location = args.getString(0);
-			
+			callbackContext = callback;
 			cordova.getActivity().runOnUiThread(new Runnable() {
 				@Override
 				public void run() {
@@ -65,4 +69,20 @@ public class ChartboostPlugin extends CordovaPlugin{
 		
 		return false;
 	}
+
+    private ChartboostDelegate delegate = new ChartboostDelegate() {
+        @Override
+        public void didDismissInterstitial(String location) {
+            if (callbackContext != null) {
+                callbackContext.success("{\"location\": \"" + location + "\"}");
+            }
+        }
+        
+        @Override
+        public void didFailToLoadInterstitial(String location, CBImpressionError error) {
+            if (callbackContext != null) {
+                callbackContext.error("{\"location\": \"" + location + "\",\"Error\": \"" + error.name() +"\"}");
+            }
+        }
+    };
 }

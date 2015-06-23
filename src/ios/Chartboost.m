@@ -7,6 +7,7 @@
 
 @interface ChartboostPlugin : CDVPlugin <ChartboostDelegate, CBNewsfeedDelegate>{
 	NSMutableArray* _queue;
+    BOOL caching;
 }
 
 -(void) init:(CDVInvokedUrlCommand*)command;
@@ -25,14 +26,14 @@
 		_queue = [NSMutableArray array];    
 	}
 	
-	[_queue addObject: callbackId];
 	[Chartboost startWithAppId:appId
 				appSignature:appSignature
 				delegate:self];
 	
 	CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@""];
 	[self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
-
+    [Chartboost setAutoCacheAds:false];
+    caching = true;
 	[Chartboost cacheInterstitial:CBLocationDefault];
 }
 
@@ -60,38 +61,83 @@
 
 // Called after an interstitial has been displayed on the screen.
 -(void) didDisplayInterstitial:(CBLocation)location{
-	if(_queue != nil && _queue.count > 0){
+}
+
+// Called after an institial
+-(void) didDismissInterstitial:(CBLocation)location{
+    if(_queue != nil && _queue.count > 0){
 		NSString* callbackId = _queue[0];
 		[_queue removeObjectAtIndex:0];
 		
 		CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@""];
 		[self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
-	}
+    }
+    caching = true;
+    [Chartboost cacheInterstitial:CBLocationDefault];
 }
 
 // Called after an interstitial has been loaded from the Chartboost API
 // servers and cached locally.
 -(void) didCacheInterstitial:(CBLocation)location{
-	if(_queue != nil && _queue.count > 0){
-		NSString* callbackId = _queue[0];
-		[_queue removeObjectAtIndex:0];
-		
-		CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@""];
-		[self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
-	}
+    caching = false;
 }
 
 // Called after an interstitial has attempted to load from the Chartboost API
 // servers but failed.
 -(void) didFailToLoadInterstitial:(CBLocation)location
 						 withError:(CBLoadError)error{
-	if(_queue != nil && _queue.count > 0){
+	if(_queue != nil && _queue.count > 0 && !caching){
 		NSString* callbackId = _queue[0];
 		[_queue removeObjectAtIndex:0];
 		
-		CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Error loading the interstitial"];
+		CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:[NSString stringWithFormat:@"%@ - %@", @"Error loading the interstitial", [self formatTypeToString: error]]];
 		[self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
-	}
+    } else if (caching) {
+        caching = false;
+    }
+}
+- (NSString*)formatTypeToString:(CBLoadError)formatType {
+    NSString *result = nil;
+    
+    switch(formatType) {
+        case CBLoadErrorInternal:
+        result = @"Internal";
+        break;
+        case CBLoadErrorInternetUnavailable:
+        result = @"Internet Unavailable";
+        break;
+        case CBLoadErrorTooManyConnections:
+        result = @"Too Many Connections";
+        break;
+        case CBLoadErrorWrongOrientation:
+        result = @"Wrong Orientation";
+        break;
+        case CBLoadErrorFirstSessionInterstitialsDisabled:
+        result = @"First Session Interstitials Disabled";
+        break;
+        case CBLoadErrorNetworkFailure:
+        result = @"Network Failure";
+        break;
+        case CBLoadErrorNoAdFound:
+        result = @"No Ad Found";
+        break;
+        case CBLoadErrorSessionNotStarted:
+        result = @"Session Not Started";
+        break;
+        case CBLoadErrorUserCancellation:
+        result = @"User Cancellation";
+        break;
+        case CBLoadErrorNoLocationFound:
+        result = @"No Location Found";
+        break;
+        case CBLoadErrorPrefetchingIncomplete:
+        result = @"Prefetching Incomplete";
+        break;
+        default:
+        result = @"Unexpected FormatType.";
+    }
+    
+    return result;
 }
 
 @end
